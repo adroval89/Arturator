@@ -1,8 +1,20 @@
+#include <LiquidCrystal_I2C.h>
 #include <IRremote.h>
 #include <Wire.h>
-#include <LiquidCrystal_I2C.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+#include <UbiProtocol.h>
+#include <UbiConstants.h>
+#include <UbiTcp.h>
+#include <Ubidots.h>
+#include <UbiTypes.h>
+#include <UbiBuilder.h>
+#include <UbiProtocolHandler.h>
+#include <UbiUdp.h>
+#include <UbiUtils.h>
+#include <UbiHttp.h>
+
 #define ONE_WIRE_BUS 2
 #define pinkettlesour 3
 #define pinBoilPump 0
@@ -10,11 +22,19 @@
 #define pinhlt 13
 #define pinboil 15
 
+// internet connection
+
+const char* UBIDOTS_TOKEN = "BBUS-U9PzCLeCBwstFMTwMFbdJ5IDQ9BiEw";  // Put here your Ubidots TOKEN
+const char* WIFI_SSID = "ADROIVA"; // Put here your Wi-Fi SSID
+const char* WIFI_PASS = "Los5locos"; // Put here your Wi-Fi password
+
+
+
 //variables
 const int receiver = D5; // Signal Pin of IR receiver to Arduino Digital Pin 10
 int hlt = 0;
 int boil = 1;
-String MESSAGE = "Arturator 2.1";
+String MESSAGE = "Arturator 3.0";
 int power = 2000;
 float hltTemp = 80;
 bool hltON = false;
@@ -32,15 +52,17 @@ const int intervalON = 5500;
 uint32_t nextTime;
 float loweringTemps[10] = {88,89,90,91,92,93,94,95,96,97};
 float *loweringtemp = loweringTemps;
+uint32_t currentTime;
 
+//open ubidots connection with TCP protocol
 
-
+Ubidots ubidots(UBIDOTS_TOKEN, UBI_TCP);
 
 OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
 LiquidCrystal_I2C lcd(0x27, 20, 4); // set the LCD address to 0x27 for a 20 chars and 4 line display
-\
+
 IRrecv irrecv(receiver);     // create instance of 'irrecv'
 
 
@@ -49,13 +71,13 @@ IRrecv irrecv(receiver);     // create instance of 'irrecv'
 
 void setup()
 {
-  Serial.begin(9600);
-  Serial.println("Dallas Temperature IC Control Library Demo");
-  // Start up the library
+    // Start up the library
   sensors.begin();
   lcd.begin();
   lcd.backlight();
-  lcd.print("HLT  ");
+  lcd.print("Connecting to WIFI ...");
+  ubidots.wifiConnect(WIFI_SSID, WIFI_PASS);  // connect to ubidots
+  lcd.print("Connected");
   pinMode(pinhlt, OUTPUT);
   pinMode(pinboil, OUTPUT);
   pinMode(pinMashPump, OUTPUT);
@@ -73,6 +95,7 @@ void setup()
 
 void loop()
 {
+  currentTime = millis(); //Keep internal clock
   // Call sensors.requestTemperatures() to issue a global temperature and Requests to all devices on the bus
   sensors.requestTemperatures();
   lcd.clear();
@@ -80,7 +103,7 @@ void loop()
   lcd.print(sensors.getTempCByIndex(hlt));
   lcd.print("C") ;
   lcd.setCursor(0, 1);
-  lcd.print("BOIL ");
+  lcd.print(ubidotsRec());
   lcd.print(sensors.getTempCByIndex(boil));
   lcd.print("C") ;
   lcd.setCursor(0, 2);
@@ -172,6 +195,7 @@ void loop()
     }
     if (!kettlesour) {
       digitalWrite(pinkettlesour, HIGH);
+    ubidotsSend();
     }
 }
 
@@ -226,7 +250,6 @@ void waterHeating() {
 }
 
 void resistanceSwitch(int pw) {
-  uint32_t currentTime = millis();
   if (currentTime > nextTime) {
     if (digitalRead(pinboil)) {
       digitalWrite(pinboil, LOW);
@@ -249,4 +272,14 @@ void kettlesouring() {
     digitalWrite(pinkettlesour, LOW);
 
   }
+}
+void ubidotsSend(){
+  ubidots.add("BOIL_temp", sensors.getTempCByIndex(boil));
+  bool bufferSent = false;
+  bufferSent = ubidots.send();
+}
+
+float ubidotsRec(){
+    float value = ubidots.get("bcddc27db775", "variable_name_two");
+    return value;
 }
