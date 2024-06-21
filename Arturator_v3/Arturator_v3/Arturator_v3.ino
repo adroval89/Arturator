@@ -11,7 +11,6 @@
 #include <UbiTypes.h>
 #include <UbiBuilder.h>
 #include <UbiProtocolHandler.h>
-#include <UbiUtils.h>
 
 #define ONE_WIRE_BUS 2
 #define pinkettlesour 3
@@ -40,6 +39,10 @@ bool hltON = false;
 bool boilON = false;
 bool mashPumpON = false;
 bool boilPumpON = false;
+bool hltON_change = false;
+bool boilON_change = false;
+bool mashPumpON_change = false;
+bool boilPumpON_change = false;
 bool preparation = false;
 bool kettlesour = false;
 long timeing;
@@ -52,7 +55,7 @@ uint32_t nextTime;
 int loweringTemps[10] = {88, 89, 90, 91, 92, 93, 94, 95, 96, 97};
 int* loweringtemp = loweringTemps;
 uint32_t currentTime ;
-unsigned long target_time = 0L ; // same value than PERIOD. This runs the 
+unsigned long target_time = 0L ; // same value than PERIOD. This runs the
 bool ubidots_status;
 
 //open ubidots connection with TCP protocol
@@ -62,7 +65,6 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature.
 DallasTemperature sensors(&oneWire);
 LiquidCrystal_I2C lcd(0x27, 20, 4); // set the LCD address to 0x27 for a 20 chars and 4 line display
-
 IRrecv irrecv(receiver);     // create instance of 'irrecv'
 
 
@@ -109,7 +111,7 @@ void loop()
   lcd.print("BOIL ");
   lcd.print(sensors.getTempCByIndex(boil));
   lcd.print(" C") ;
-  lcd.setCursor(14,0);
+  lcd.setCursor(14, 0);
   ubidots_status ? lcd.print("UBI OK") : lcd.print("UBI XX");
   lcd.setCursor(0, 2);
   lcd.print(MESSAGE);
@@ -127,19 +129,19 @@ void loop()
   {
     switch (irrecv.decodedIRData.decodedRawData) // Encender o apagar los programas en función de la tecla apretada.
     {
-      case 0xF30CFF00: boilON = switches(boilON, "hervido terminado", "hirviendo..."); break; // numero 1
+      case 0xF30CFF00: boilON = switches(boilON, "hervido terminado", "hirviendo..."); boilON_change = true; break; // numero 1
       case 0xE718FF00: (*loweringtemp == 97) ? loweringtemp = loweringTemps : loweringtemp += 1 ; // numero 2
         MESSAGE = "Max pow till " + String(*loweringtemp) + " C"; break;
-      case 0xA15EFF00: hltON = switches(hltON, "HLT off", "HLT on"); break; // numero 3
-      case 0xF708FF00: mashPumpON = switches(mashPumpON, "mash pump off", "mash pump on"); break; // numero 4
-      case 0xE31CFF00: boilPumpON = switches(boilPumpON, "boil pump off", "boil pump on"); break; // numero 5
-      case 0xA55AFF00: 
-      if (!ubidots_status) {
-        wifilogin(); 
-      } else {
-        MESSAGE = "wifi connected";
-      }
-      break;
+      case 0xA15EFF00: hltON = switches(hltON, "HLT off", "HLT on"); hltON_change = true; break; // numero 3
+      case 0xF708FF00: mashPumpON = switches(mashPumpON, "mash pump off", "mash pump on"); mashPumpON_change = true; break; // numero 4
+      case 0xE31CFF00: boilPumpON = switches(boilPumpON, "boil pump off", "boil pump on"); boilPumpON_change = true; break; // numero 5
+      case 0xA55AFF00:
+        if (!ubidots_status) {
+          wifilogin();
+        } else {
+          MESSAGE = "wifi connected";
+        }
+        break;
       case 0xB54AFF00: preparation = true; // numero 9
         MESSAGE = "calentando agua";
         boilON = hltON = mashPumpON = boilPumpON = false; break; // apaga todo el resto, este programa corre solo.
@@ -274,10 +276,22 @@ void kettlesouring() {
 bool ubidotsSend() {
   ubidots.add("BOIL_temp", sensors.getTempCByIndex(boil));
   ubidots.add("HLT_temp", sensors.getTempCByIndex(hlt));
-  ubidots.add("Boil", boilON);
-  ubidots.add("HLT", hltON);
-  ubidots.add("Boil Pump", boilPumpON);
-  ubidots.add("HLT Pump", mashPumpON);
+  if (boilON_change) {
+    ubidots.add("Boil", boilON);
+    boilON_change = false;
+  }
+  if (hltON_change) {
+    ubidots.add("HLT", hltON);
+    hltON_change = false;
+  }
+  if (boilPumpON_change) {
+    ubidots.add("Boil Pump", boilPumpON);
+    boilPumpON_change = false;
+  }
+  if (mashPumpON_change) {
+    ubidots.add("HLT Pump", mashPumpON);
+    mashPumpON_change = false;
+  }
   bool bufferSent = false;
   bufferSent = ubidots.send();
   return bufferSent;
@@ -296,10 +310,10 @@ bool switches(bool swt, String msg_false, String msg_true) {
   return result;
 }
 
-void wifilogin(){
+void wifilogin() {
   lcd.clear();
   lcd.print("Connecting WIFI ...");
-  lcd.setCursor(0,1);
+  lcd.setCursor(0, 1);
   (ubidots.wifiConnect(WIFI_SSID, WIFI_PASS)) ? lcd.print("Connected") : lcd.print("Connection failed");
   delay(1500);
 }
