@@ -23,8 +23,8 @@
 // constants
 
 const char* UBIDOTS_TOKEN = "BBUS-U9PzCLeCBwstFMTwMFbdJ5IDQ9BiEw";  // Put here your Ubidots TOKEN
-const char* WIFI_SSID = "ADROIVA"; // Put here your Wi-Fi SSID
-const char* WIFI_PASS = "Los5locos"; // Put here your Wi-Fi password
+const char* WIFI_SSID = "Iva"; // Put here your Wi-Fi SSID
+const char* WIFI_PASS = "adroivanna2564"; // Put here your Wi-Fi password
 const unsigned long PERIOD = 30000;
 const int receiver = D5; // Signal Pin of IR receiver to Arduino Digital Pin 10
 
@@ -32,7 +32,7 @@ const int receiver = D5; // Signal Pin of IR receiver to Arduino Digital Pin 10
 //variables
 int hlt = 0;
 int boil = 1;
-String MESSAGE = "Arturator 3.0";
+String MESSAGE = "Arturator 3.1";
 int power = 2000;
 float hltTemp = 80;
 bool hltON = false;
@@ -125,16 +125,18 @@ void loop()
   lcd.print(" ");
   lcd.print(printpower);
   lcd.print(" W");
+  lcd.setCursor(12, 1);
+  lcd.print(status_panel());
   if (irrecv.decode()) // have we received an IR signal?
   {
     switch (irrecv.decodedIRData.decodedRawData) // Encender o apagar los programas en función de la tecla apretada.
     {
       case 0xF30CFF00: boilON = switches(boilON, "hervido terminado", "hirviendo..."); boilON_change = true; break; // numero 1
       case 0xE718FF00: (*loweringtemp == 97) ? loweringtemp = loweringTemps : loweringtemp += 1 ; // numero 2
-        MESSAGE = "Max pow till " + String(*loweringtemp) + " C"; break;
+        MESSAGE = "Max pow " + String(*loweringtemp) + " C"; break;
       case 0xA15EFF00: hltON = switches(hltON, "HLT off", "HLT on"); hltON_change = true; break; // numero 3
-      case 0xF708FF00: mashPumpON = switches(mashPumpON, "mash pump off", "mash pump on"); mashPumpON_change = true; break; // numero 4
-      case 0xE31CFF00: boilPumpON = switches(boilPumpON, "boil pump off", "boil pump on"); boilPumpON_change = true; break; // numero 5
+      case 0xF708FF00: mashPumpON = switches(mashPumpON, "mashpump off", "mashpump on"); mashPumpON_change = true; break; // numero 4
+      case 0xE31CFF00: boilPumpON = switches(boilPumpON, "boilpump off", "boilpump on"); boilPumpON_change = true; break; // numero 5
       case 0xA55AFF00:
         if (!ubidots_status) {
           wifilogin();
@@ -317,6 +319,15 @@ void wifilogin() {
   (ubidots.wifiConnect(WIFI_SSID, WIFI_PASS)) ? lcd.print("Connected") : lcd.print("Connection failed");
   delay(1500);
 }
-//  UNUSED BUTTONS
-//  0xBD42FF00 numero 7
-//   0xAD52FF00 numero 8
+
+String status_panel() {
+  bool stat[4] = {boilON, hltON, mashPumpON, boilPumpON};
+  String status_switch = "";
+  for (int i = 0; i < 4; i++) {
+    status_switch += (stat[i]) ? 'P' : 'A';
+  }
+  return status_switch;
+}
+  //  UNUSED BUTTONS
+  //  0xBD42FF00 numero 7
+  //   0xAD52FF00 numero 8
